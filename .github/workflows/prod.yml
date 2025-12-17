@@ -1,0 +1,51 @@
+---
+name: "Prod image build and deployment"
+
+on:
+  push:
+    branches: 
+      -  prod
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      packer_version: "1.9.4"
+
+    steps:
+      - name: "Repository Checkout"
+        uses: actions/checkout@v3
+
+      - name: "Packer Installation"
+        uses: hashicorp/setup-packer@main
+        with:
+          version: ${{ env.packer_version }}
+
+      - name: "Packer Init"
+        run: packer init .
+        working-directory: ./packer/
+
+      - name: "Packer Validate"
+        run: packer validate -var-file="prod.pkrvars.hcl" .
+        working-directory: ./packer/
+
+      - name: "Format Packer Template"
+        run: packer fmt .
+        working-directory: ./packer/
+
+      - name: "Packer build Image"
+        run: packer build -var-file="prod.pkrvars.hcl" .
+        working-directory: ./packer/
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.PROD_ACCESS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.PROD_SECRET_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.PROD_REGION }}
+
+
+      - name: "Notify prod deploy job"
+        uses: peter-evans/repository-dispatch@v2
+        with:
+          token: ${{ secrets.PAT }}
+          repository: vishnudas545/phpwebsite-packer-terraform2
+          event-type: prod-deployment-event
+
